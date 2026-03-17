@@ -1,0 +1,57 @@
+name: React Build
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: true
+        type: string
+        description: 'Node.js version to use'
+      branch:
+        required: true
+        type: string
+        description: 'Branch to checkout'
+      working-directory:
+        required: false
+        type: string
+        default: '.'
+        description: 'Working directory for the React application (where package.json is located)'
+      build-command:
+        required: false
+        type: string
+        default: 'npm ci && npm run build'
+        description: 'Command to run for building the React application'
+      build-output-directory:
+        required: false
+        type: string
+        default: 'build'
+        description: 'Directory containing the built React application artifacts'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.branch }}
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: '${{ inputs.working-directory }}/package-lock.json'
+
+    - name: Install dependencies and build
+      run: |
+        cd ${{ inputs.working-directory }}
+        ${{ inputs.build-command }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: react-build-artifacts
+        path: ${{ inputs.working-directory }}/${{ inputs.build-output-directory }}
+
