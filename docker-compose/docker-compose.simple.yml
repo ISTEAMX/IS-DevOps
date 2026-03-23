@@ -1,3 +1,6 @@
+# This file is for running the core application (backend, frontend, database)
+# without Terraform or LocalStack. It creates and manages its own network.
+
 services:
   backend:
     build:
@@ -38,7 +41,7 @@ services:
 
 networks:
   isteamx-network:
-    external: true
+    driver: bridge
 
 volumes:
   postgres-data:
