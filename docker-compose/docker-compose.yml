@@ -1,29 +1,46 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: postgres_container
+  backend:
+    build:
+      context: ../../IS-Backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app_db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/app_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - database
+    networks:
+      - isteamx-network
+
+  frontend:
+    build:
+      context: ../../IS-Frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - isteamx-network
+
+  database:
+    image: postgres:latest
+    environment:
+      - POSTGRES_DB=app_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - postgres-data:/var/lib/postgresql/data
     networks:
-      - app_network
-
-volumes:
-  postgres_data:
+      - isteamx-network
 
 networks:
-  app_network:
+  isteamx-network:
     driver: bridge
 
+volumes:
+  postgres-data:
