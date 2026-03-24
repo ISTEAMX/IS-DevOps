@@ -38,7 +38,7 @@ services:
 
 networks:
   isteamx-network:
-    external: true
+    driver: bridge
 
 volumes:
   postgres-data:
