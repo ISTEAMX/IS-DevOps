@@ -3,7 +3,6 @@ variable "instance_name" {
   type        = string
 }
 
-# Data source to find the latest Ubuntu AMI
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -17,10 +16,9 @@ data "aws_ami" "ubuntu" {
     values = ["hvm"]
   }
 
-  owners = ["099720109477"] # Canonical's owner ID
+  owners = ["099720109477"]
 }
 
-# Security Group to control firewall rules
 resource "aws_security_group" "backend_sg" {
   name        = "${var.instance_name}-sg"
   description = "Allow HTTP from anywhere. SSH is managed by the CI/CD pipeline."
@@ -44,7 +42,6 @@ resource "aws_security_group" "backend_sg" {
   }
 }
 
-# IAM Role that allows the EC2 instance to be managed by AWS and access ECR
 resource "aws_iam_role" "ec2_role" {
   name = "${var.instance_name}-role"
   assume_role_policy = jsonencode({
@@ -59,19 +56,16 @@ resource "aws_iam_role" "ec2_role" {
   })
 }
 
-# Attach the AWS-managed policy that grants read-only access to ECR
 resource "aws_iam_role_policy_attachment" "ecr_read_policy" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-# Create an instance profile to attach the role to the EC2 instance
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.instance_name}-profile"
   role = aws_iam_role.ec2_role.name
 }
 
-# The EC2 Instance itself
 resource "aws_instance" "backend" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.micro"
@@ -81,18 +75,59 @@ resource "aws_instance" "backend" {
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   user_data     = <<-EOF
-              #!/bin/bash
-              sudo apt-get update
-              sudo apt-get install -y docker.io amazon-ecr-credential-helper
-              sudo usermod -aG docker ubuntu
+              #!/bin/bash -xe
 
-              # Configure Docker to use the ECR credential helper
-              sudo mkdir -p /home/ubuntu/.docker
-              echo '{ "credsStore": "ecr-login" }' | sudo tee /home/ubuntu/.docker/config.json
-              sudo chown -R ubuntu:ubuntu /home/ubuntu/.docker
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
 
-              # Restart Docker to apply changes
-              sudo systemctl restart docker
+              echo "Starting user data script"
+
+              apt-get update
+              apt-get install -y docker.io docker-compose-v2
+
+              usermod -aG docker ubuntu
+
+              systemctl restart docker
+
+              echo "Creating app directory"
+              mkdir -p /home/ubuntu/app
+              cd /home/ubuntu/app
+
+              echo "Creating .env"
+              cat <<EOF_ENV > .env
+              POSTGRES_DB=app_db
+              POSTGRES_USER=postgres
+              POSTGRES_PASSWORD=postgres
+              EOF_ENV
+
+              echo "Creating docker-compose.yml"
+              cat <<'EOF_COMPOSE' > docker-compose.yml
+              services:
+                database:
+                  image: postgres:15
+                  env_file:
+                    - .env
+                  ports:
+                    - "5432:5432"
+                  volumes:
+                    - postgres-data:/var/lib/postgresql/data
+                  networks:
+                    - isteamx-network
+
+              networks:
+                isteamx-network:
+                  driver: bridge
+
+              volumes:
+                postgres-data:
+              EOF_COMPOSE
+
+              chown -R ubuntu:ubuntu /home/ubuntu/app
+
+              echo "Starting database"
+              cd /home/ubuntu/app
+              docker compose up -d
+
+              echo "User data script finished"
               EOF
 
   tags = {
