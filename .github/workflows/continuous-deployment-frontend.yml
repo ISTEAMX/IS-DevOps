@@ -40,4 +40,4 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          aws s3 sync build/ s3://isteamx-frontend-bucket-for-devops --delete
+          aws s3 sync dist/ s3://isteamx-frontend-bucket-for-devops --delete
