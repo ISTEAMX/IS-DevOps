@@ -15,14 +15,17 @@ on:
         required: true
       ECR_REPOSITORY_URL:
         required: true
+      EC2_SECURITY_GROUP_ID:
+        required: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout calling repository
-      uses: actions/checkout@v3
+    - name: Get GitHub Actions Runner IP
+      id: runner-ip
+      run: echo "ip=$(curl -s ifconfig.me)" >> $GITHUB_OUTPUT
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v2
@@ -30,6 +33,17 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: eu-central-1
+
+    - name: Add temporary SSH rule to Security Group
+      run: |
+        aws ec2 authorize-security-group-ingress \
+          --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+          --protocol tcp \
+          --port 22 \
+          --cidr ${{ steps.runner-ip.outputs.ip }}/32
+
+    - name: Checkout calling repository
+      uses: actions/checkout@v3
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -42,9 +56,7 @@ jobs:
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-        
         docker push $ECR_REPOSITORY:$IMAGE_TAG
-        
         echo "image=$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     - name: Deploy to EC2
@@ -58,3 +70,12 @@ jobs:
           docker stop isteamx-backend || true
           docker rm isteamx-backend || true
           docker run -d --name isteamx-backend -p 8080:8080 ${{ steps.build-image.outputs.image }}
+
+    - name: Clean up temporary SSH rule
+      if: always()
+      run: |
+        aws ec2 revoke-security-group-ingress \
+          --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
+          --protocol tcp \
+          --port 22 \
+          --cidr ${{ steps.runner-ip.outputs.ip }}/32

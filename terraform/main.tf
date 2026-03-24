@@ -45,3 +45,8 @@ output "backend_repository_url" {
   description = "The URL of the backend ECR repository."
   value       = module.backend_repository.repository_url
 }
+
+output "backend_security_group_id" {
+  description = "The ID of the backend security group."
+  value       = module.backend_instance.security_group_id
+}
