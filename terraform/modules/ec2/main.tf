@@ -19,33 +19,10 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"]
 }
 
-resource "aws_security_group" "backend_sg" {
-  name        = "${var.instance_name}-sg"
-  description = "Allow HTTP from anywhere. SSH is managed by CI/CD."
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.instance_name}-sg"
+data "aws_security_group" "backend_sg" {
+  filter {
+    name   = "group-name"
+    values = ["isteamx-backend-sg"]
   }
 }
 
@@ -79,36 +56,23 @@ resource "aws_instance" "backend" {
   instance_type = "t3.micro"
   key_name      = "isteamx-key"
 
-  vpc_security_group_ids = [aws_security_group.backend_sg.id]
+  vpc_security_group_ids = [data.aws_security_group.backend_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
   user_data = <<-EOF
 #!/bin/bash -xe
-
-exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
-
-echo "Starting user data script"
-
 apt-get update
 apt-get install -y docker.io docker-compose-v2 awscli
-
 systemctl enable docker
 systemctl start docker
-
 usermod -aG docker ubuntu
-
-echo "Creating app directory"
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
-
-echo "Creating .env"
 cat <<EOF_ENV > .env
 POSTGRES_DB=app_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 EOF_ENV
-
-echo "Creating docker-compose.yml"
 cat <<'EOF_COMPOSE' > docker-compose.yml
 services:
   database:
@@ -130,14 +94,8 @@ networks:
 volumes:
   postgres-data:
 EOF_COMPOSE
-
 chown -R ubuntu:ubuntu /home/ubuntu/app
-
-echo "Starting database"
-cd /home/ubuntu/app
 docker compose up -d
-
-echo "User data script finished"
 EOF
 
   tags = {
@@ -145,15 +103,19 @@ EOF
   }
 }
 
-resource "aws_eip" "backend" {
-  instance = aws_instance.backend.id
-  domain   = "vpc"
+data "aws_eip" "backend" {
+  public_ip = "35.158.14.254"
+}
+
+resource "aws_eip_association" "backend_assoc" {
+  instance_id   = aws_instance.backend.id
+  allocation_id = data.aws_eip.backend.id
 }
 
 output "public_ip" {
-  value = aws_eip.backend.public_ip
+  value = data.aws_eip.backend.public_ip
 }
 
 output "security_group_id" {
-  value = aws_security_group.backend_sg.id
+  value = data.aws_security_group.backend_sg.id
 }
