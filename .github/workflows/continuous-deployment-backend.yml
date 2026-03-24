@@ -66,9 +66,22 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
+          echo "Login to ECR"
+          aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin $(echo ${{ steps.build-image.outputs.image }} | cut -d'/' -f1)
+
+          echo "Stop old backend"
           docker stop isteamx-backend || true
           docker rm isteamx-backend || true
-          docker run -d --name isteamx-backend -p 8080:8080 ${{ steps.build-image.outputs.image }}
+
+          echo "Run new backend"
+          docker run -d \
+            --name isteamx-backend \
+            -p 8080:8080 \
+            --network app_isteamx-network \
+            -e SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/app_db \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            ${{ steps.build-image.outputs.image }}
 
     - name: Clean up temporary SSH rule
       if: always()
