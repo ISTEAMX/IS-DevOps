@@ -1,61 +1,47 @@
 terraform {
   required_providers {
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
   }
-}
-
-# By removing the provider "docker" block, Terraform will automatically
-# use the default Docker socket for the user's operating system.
-# For Colima/Docker Desktop users on Mac, this works out of the box.
-
-provider "aws" {
-  region                      = "us-east-1"
-  access_key                  = "test"
-  secret_key                  = "test"
-  skip_credentials_validation = true
-  skip_metadata_api_check     = true
-  skip_requesting_account_id  = true
-
-  endpoints {
-    s3 = "http://127.0.0.1:4566"
+  backend "s3" {
+    bucket = "isteamx-devops-terraform-state-bucket"
+    key    = "terraform.tfstate"
+    region = "eu-central-1"
   }
 }
 
-resource "docker_network" "isteamx" {
-  name = "isteamx-network"
-}
-
-module "localstack" {
-  source   = "./modules/localstack"
-  networks = [docker_network.isteamx.name]
+provider "aws" {
+  region = "eu-central-1"
 }
 
 module "frontend_site" {
-  source      = "./modules/s3-static-site"
-  bucket_name = "isteamx-frontend"
-  depends_on = [
-    module.localstack
-  ]
+  source      = "./modules/s3"
+  bucket_name = "isteamx-frontend-bucket-for-devops"
 }
 
-output "localstack_container_name" {
-  description = "Name of the LocalStack container"
-  value       = module.localstack.container_name
+module "backend_instance" {
+  source        = "./modules/ec2"
+  instance_name = "isteamx-backend"
 }
 
-output "localstack_container_id" {
-  description = "ID of the LocalStack container"
-  value       = module.localstack.container_id
+module "backend_repository" {
+  source          = "./modules/ecr"
+  repository_name = "isteamx-backend"
 }
 
 output "frontend_website_endpoint" {
   description = "The S3 bucket website endpoint for the frontend."
   value       = module.frontend_site.website_endpoint
+}
+
+output "backend_public_ip" {
+  description = "The public IP address of the backend EC2 instance."
+  value       = module.backend_instance.public_ip
+}
+
+output "backend_repository_url" {
+  description = "The URL of the backend ECR repository."
+  value       = module.backend_repository.repository_url
 }
