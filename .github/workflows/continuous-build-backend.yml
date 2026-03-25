@@ -6,7 +6,12 @@ on:
       java-version:
         required: true
         type: string
-      
+    secrets:
+      JWT_SECRET_KEY:
+        required: true
+      JWT_EXPIRATION:
+        required: true
+
 jobs:
   build:
     name: Backend Build
@@ -22,6 +27,7 @@ jobs:
       - name: Build with Maven
         env:
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          JWT_EXPIRATION: ${{ secrets.JWT_EXPIRATION }}
         run: mvn -B package --file pom.xml
   docker-build:
     name: Docker Build
