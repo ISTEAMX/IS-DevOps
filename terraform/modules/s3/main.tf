@@ -4,8 +4,13 @@ variable "bucket_name" {
 }
 
 resource "aws_s3_bucket" "site" {
-  bucket = var.bucket_name
+  bucket        = var.bucket_name
   force_destroy = true
+
+  tags = {
+    Name    = var.bucket_name
+    Project = "isteamx"
+  }
 }
 
 resource "aws_s3_bucket_ownership_controls" "site" {

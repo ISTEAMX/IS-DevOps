@@ -13,12 +13,33 @@ provider "aws" {
 
 module "frontend_site" {
   source      = "./modules/s3"
-  bucket_name = "isteamx-frontend-bucket-for-devops"
+  bucket_name = "isteamx-unisync"
+}
+
+variable "postgres_db" {
+  description = "PostgreSQL database name."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_user" {
+  description = "PostgreSQL username."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_password" {
+  description = "PostgreSQL password."
+  type        = string
+  sensitive   = true
 }
 
 module "backend_instance" {
-  source        = "./modules/ec2"
-  instance_name = "isteamx-backend"
+  source            = "./modules/ec2"
+  instance_name     = "isteamx-backend"
+  postgres_db       = var.postgres_db
+  postgres_user     = var.postgres_user
+  postgres_password = var.postgres_password
 }
 
 module "backend_repository" {

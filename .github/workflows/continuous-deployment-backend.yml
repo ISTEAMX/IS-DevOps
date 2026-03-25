@@ -1,5 +1,4 @@
 name: Reusable Backend Deployment
-
 on:
   workflow_call:
     secrets:
@@ -17,36 +16,37 @@ on:
         required: true
       EC2_SECURITY_GROUP_ID:
         required: true
-
+      POSTGRES_DB:
+        required: true
+      POSTGRES_USER:
+        required: true
+      POSTGRES_PASSWORD:
+        required: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Get Runner IP
         id: runner-ip
         run: echo "ip=$(curl -s ifconfig.me)" >> $GITHUB_OUTPUT
-
       - name: Configure AWS
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
-
       - name: Allow SSH temporarily
         run: |
           aws ec2 authorize-security-group-ingress \
             --group-id ${{ secrets.EC2_SECURITY_GROUP_ID }} \
             --protocol tcp \
             --port 22 \
-            --cidr ${{ steps.runner-ip.outputs.ip }}/32
-
-      - uses: actions/checkout@v3
-
+            --cidr ${{ steps.runner-ip.outputs.ip }}/32 \
+          || echo "Rule may already exist, continuing..."
+      - uses: actions/checkout@v4
       - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v1
-
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
       - name: Build & Push
         id: build-image
         env:
@@ -56,34 +56,31 @@ jobs:
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             echo "Login to ECR"
-            aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 307223751219.dkr.ecr.eu-central-1.amazonaws.com
-            
+            aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            echo "Pull latest image"
+            docker pull ${{ steps.build-image.outputs.image }}
+            echo "Ensure docker network exists"
+            docker network create isteamx-network || true
             echo "Stop old backend"
             docker stop isteamx-backend || true
             docker rm isteamx-backend || true
-            
-            echo "Pull latest image"
-            docker pull ${{ steps.build-image.outputs.image }}
-            
             echo "Run backend"
             docker run -d \
               --name isteamx-backend \
               -p 8080:8080 \
-              --network app_isteamx-network \
-              -e SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/app_db \
-              -e POSTGRES_USER=postgres \
-              -e POSTGRES_PASSWORD=postgres \
+              --network isteamx-network \
+              -e SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/${{ secrets.POSTGRES_DB }} \
+              -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
               ${{ steps.build-image.outputs.image }}
-
       - name: Remove SSH rule
         if: always()
         run: |
