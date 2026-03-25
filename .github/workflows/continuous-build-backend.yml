@@ -20,6 +20,8 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: Build with Maven
+        env:
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         run: mvn -B package --file pom.xml
   docker-build:
     name: Docker Build
