@@ -3,6 +3,24 @@ variable "instance_name" {
   type        = string
 }
 
+variable "postgres_db" {
+  description = "PostgreSQL database name."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_user" {
+  description = "PostgreSQL username."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_password" {
+  description = "PostgreSQL password."
+  type        = string
+  sensitive   = true
+}
+
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -39,6 +57,11 @@ resource "aws_iam_role" "ec2_role" {
       }
     }]
   })
+
+  tags = {
+    Name    = "${var.instance_name}-role"
+    Project = "isteamx"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ecr_read_policy" {
@@ -49,6 +72,11 @@ resource "aws_iam_role_policy_attachment" "ecr_read_policy" {
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.instance_name}-profile"
   role = aws_iam_role.ec2_role.name
+
+  tags = {
+    Name    = "${var.instance_name}-profile"
+    Project = "isteamx"
+  }
 }
 
 resource "aws_instance" "backend" {
@@ -58,6 +86,11 @@ resource "aws_instance" "backend" {
 
   vpc_security_group_ids = [data.aws_security_group.backend_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
 
   user_data = <<-EOF
 #!/bin/bash -xe
@@ -69,9 +102,9 @@ usermod -aG docker ubuntu
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
 cat <<EOF_ENV > .env
-POSTGRES_DB=app_db
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
+POSTGRES_DB=${var.postgres_db}
+POSTGRES_USER=${var.postgres_user}
+POSTGRES_PASSWORD=${var.postgres_password}
 EOF_ENV
 cat <<'EOF_COMPOSE' > docker-compose.yml
 services:
@@ -80,8 +113,6 @@ services:
     restart: always
     env_file:
       - .env
-    ports:
-      - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -89,6 +120,7 @@ services:
 
 networks:
   isteamx-network:
+    name: isteamx-network
     driver: bridge
 
 volumes:
@@ -99,7 +131,8 @@ docker compose up -d
 EOF
 
   tags = {
-    Name = var.instance_name
+    Name    = var.instance_name
+    Project = "isteamx"
   }
 }
 
