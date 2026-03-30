@@ -3,22 +3,9 @@ variable "instance_name" {
   type        = string
 }
 
-variable "postgres_db" {
-  description = "PostgreSQL database name."
+variable "secret_arn" {
+  description = "ARN of the Secrets Manager secret containing application secrets."
   type        = string
-  sensitive   = true
-}
-
-variable "postgres_user" {
-  description = "PostgreSQL username."
-  type        = string
-  sensitive   = true
-}
-
-variable "postgres_password" {
-  description = "PostgreSQL password."
-  type        = string
-  sensitive   = true
 }
 
 data "aws_ami" "ubuntu" {
@@ -44,6 +31,8 @@ data "aws_security_group" "backend_sg" {
   }
 }
 
+data "aws_region" "current" {}
+
 resource "aws_iam_role" "ec2_role" {
   name = "${var.instance_name}-role"
 
@@ -67,6 +56,22 @@ resource "aws_iam_role" "ec2_role" {
 resource "aws_iam_role_policy_attachment" "ecr_read_policy" {
   role       = aws_iam_role.ec2_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_role_policy" "secrets_manager_read" {
+  name = "${var.instance_name}-secrets-read"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "secretsmanager:GetSecretValue"
+      ],
+      Resource = var.secret_arn
+    }]
+  })
 }
 
 resource "aws_iam_instance_profile" "ec2_profile" {
@@ -95,39 +100,26 @@ resource "aws_instance" "backend" {
   user_data = <<-EOF
 #!/bin/bash -xe
 apt-get update
-apt-get install -y docker.io docker-compose-v2 awscli
+apt-get install -y docker.io awscli jq
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ubuntu
+
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
-cat <<EOF_ENV > .env
-POSTGRES_DB=${var.postgres_db}
-POSTGRES_USER=${var.postgres_user}
-POSTGRES_PASSWORD=${var.postgres_password}
-EOF_ENV
-cat <<'EOF_COMPOSE' > docker-compose.yml
-services:
-  database:
-    image: postgres:15
-    restart: always
-    env_file:
-      - .env
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - isteamx-network
 
-networks:
-  isteamx-network:
-    name: isteamx-network
-    driver: bridge
+# Fetch application secrets from AWS Secrets Manager
+SECRET_JSON=$(aws secretsmanager get-secret-value \
+  --secret-id "${var.secret_arn}" \
+  --region "${data.aws_region.current.name}" \
+  --query 'SecretString' \
+  --output text)
 
-volumes:
-  postgres-data:
-EOF_COMPOSE
+# Write each key-value pair from the JSON secret into a .env file
+echo "$SECRET_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > .env
+
 chown -R ubuntu:ubuntu /home/ubuntu/app
-docker compose up -d
+docker network create isteamx-network || true
 EOF
 
   tags = {

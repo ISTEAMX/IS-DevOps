@@ -16,12 +16,6 @@ on:
         required: true
       EC2_SECURITY_GROUP_ID:
         required: true
-      POSTGRES_DB:
-        required: true
-      POSTGRES_USER:
-        required: true
-      POSTGRES_PASSWORD:
-        required: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -69,6 +63,13 @@ jobs:
             docker pull ${{ steps.build-image.outputs.image }}
             echo "Ensure docker network exists"
             docker network create isteamx-network || true
+            echo "Fetch secrets from AWS Secrets Manager"
+            SECRET_JSON=$(aws secretsmanager get-secret-value \
+              --secret-id "isteamx/backend" \
+              --region eu-central-1 \
+              --query 'SecretString' \
+              --output text)
+            echo "$SECRET_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > /home/ubuntu/app/.env
             echo "Stop old backend"
             docker stop isteamx-backend || true
             docker rm isteamx-backend || true
@@ -77,9 +78,7 @@ jobs:
               --name isteamx-backend \
               -p 8080:8080 \
               --network isteamx-network \
-              -e SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/${{ secrets.POSTGRES_DB }} \
-              -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
-              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              --env-file /home/ubuntu/app/.env \
               ${{ steps.build-image.outputs.image }}
       - name: Remove SSH rule
         if: always()

@@ -11,10 +11,9 @@ provider "aws" {
   region = "eu-central-1"
 }
 
-module "frontend_site" {
-  source      = "./modules/s3"
-  bucket_name = "isteamx-unisync"
-}
+# ─────────────────────────────────────────────────
+# Variables
+# ─────────────────────────────────────────────────
 
 variable "postgres_db" {
   description = "PostgreSQL database name."
@@ -34,18 +33,59 @@ variable "postgres_password" {
   sensitive   = true
 }
 
+variable "jwt_secret_key" {
+  description = "JWT signing secret key."
+  type        = string
+  sensitive   = true
+}
+
+variable "jwt_expiration" {
+  description = "JWT token expiration time in milliseconds."
+  type        = string
+  sensitive   = true
+}
+
+# ─────────────────────────────────────────────────
+# Modules
+# ─────────────────────────────────────────────────
+
+module "frontend_site" {
+  source      = "./modules/s3"
+  bucket_name = "isteamx-unisync"
+}
+
 module "backend_instance" {
-  source            = "./modules/ec2"
-  instance_name     = "isteamx-backend"
-  postgres_db       = var.postgres_db
-  postgres_user     = var.postgres_user
-  postgres_password = var.postgres_password
+  source        = "./modules/ec2"
+  instance_name = "isteamx-backend"
+  secret_arn    = module.backend_secrets.secret_arn
 }
 
 module "backend_repository" {
   source          = "./modules/ecr"
   repository_name = "isteamx-backend"
 }
+
+module "backend_database" {
+  source                    = "./modules/rds"
+  db_name                   = var.postgres_db
+  db_username               = var.postgres_user
+  db_password               = var.postgres_password
+  backend_security_group_id = module.backend_instance.security_group_id
+}
+
+module "backend_secrets" {
+  source         = "./modules/secrets-manager"
+  db_name        = var.postgres_db
+  db_username    = var.postgres_user
+  db_password    = var.postgres_password
+  jwt_secret_key = var.jwt_secret_key
+  jwt_expiration = var.jwt_expiration
+  rds_endpoint   = module.backend_database.rds_endpoint
+}
+
+# ─────────────────────────────────────────────────
+# Outputs
+# ─────────────────────────────────────────────────
 
 output "frontend_website_endpoint" {
   description = "The S3 bucket website endpoint for the frontend."
@@ -65,4 +105,19 @@ output "backend_repository_url" {
 output "backend_security_group_id" {
   description = "The ID of the backend security group."
   value       = module.backend_instance.security_group_id
+}
+
+output "rds_endpoint" {
+  description = "The connection endpoint for the RDS PostgreSQL instance."
+  value       = module.backend_database.rds_endpoint
+}
+
+output "rds_port" {
+  description = "The port the RDS instance is listening on."
+  value       = module.backend_database.rds_port
+}
+
+output "secret_arn" {
+  description = "The ARN of the Secrets Manager secret."
+  value       = module.backend_secrets.secret_arn
 }
