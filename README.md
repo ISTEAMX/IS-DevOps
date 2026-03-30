@@ -51,14 +51,21 @@ This workflow provisions real AWS infrastructure and deploys the application to 
 
 > **Region:** All resources are deployed to `eu-central-1`.
 
-### Secret Management Strategy
+## Security Architecture
 
-Application runtime secrets are stored in **AWS Secrets Manager** as a single JSON secret (`isteamx/backend`). The EC2 instance fetches them dynamically at startup and during deployments using its IAM role — no secrets are hardcoded in config files or passed through CI/CD environment variables.
+The AWS environment is built using least-privilege principles and zero-trust mechanisms:
+
+1. **RDS Network Isolation**: The PostgreSQL database is completely hidden from the public internet. It resides in a private subnet group and its AWS Security Group strictly allows TCP traffic **only** from the backend EC2 instance.
+2. **Secrets Manager**: Application runtime secrets (DB passwords, JWT keys, JDBC URLs) are never hardcoded in the repository or passed via plain CI/CD pipelines. They are stored securely in AWS Secrets Manager as a strictly IAM-protected JSON payload.
+3. **IAM Least Privilege**: The backend EC2 server is assigned a minimal AWS IAM Instance Profile. It is only granted permission to pull Docker images from the exact ECR repository and read the exact application secret ARN. No long-lived credentials (`AWS_ACCESS_KEY_ID`) are stored on the EC2 server itself.
+4. **Clean Repositories**: All `IS-DevOps`, `IS-Backend`, and `IS-Frontend` repositories have been audited. No real production credentials, SSH keys, or AWS access tokens are checked into version control.
+
+### Secret Mapping Strategy
 
 | Secret Location | What Goes There | Why |
 |-----------------|-----------------|-----|
-| **AWS Secrets Manager** | DB credentials, JWT config, JDBC URL | Runtime secrets — fetched by EC2 at deploy time |
-| **GitHub Repo Secrets** | AWS keys, SSH keys, ECR URL, SG ID | CI/CD operational secrets — needed by GitHub runners |
+| **AWS Secrets Manager** | DB credentials, JWT config, JDBC URL | Runtime secrets — fetched dynamically by EC2 at deploy time/startup |
+| **GitHub Repo Secrets** | AWS auth keys, SSH keys, ECR URL | CI/CD operational secrets — needed by GitHub runners strictly to push code |
 
 ### Prerequisites
 
@@ -191,6 +198,22 @@ terraform destroy -auto-approve
 ```
 
 > **Warning:** This will destroy the EC2 instance, S3 bucket (including all objects), the ECR repository, the RDS PostgreSQL instance, and the Secrets Manager secret. The Terraform state bucket, Elastic IP, Security Group, and Key Pair are not managed by Terraform and will remain.
+
+---
+
+## AWS Power Scheduler (Cost Savings)
+
+To ensure your AWS bill remains **$0.00** (using the AWS Free Tier) when you aren't developing, the repository includes a custom GitHub Actions workflow called **AWS Power Scheduler** (`.github/workflows/aws-power-scheduler.yml`).
+
+### How to Start / Stop your Environment
+1. Go to the **Actions** tab in this GitHub repository.
+2. Select **AWS Power Scheduler** from the left sidebar.
+3. Click the **Run workflow** dropdown on the right.
+4. Choose an action:
+   - **`stop`**: Shuts down the backend EC2 server and the RDS database. Computes are paused, saving free-tier hours. Storage data remains completely safe.
+   - **`start`**: Boots up the backend EC2 server and the RDS database.
+
+> **⚠️ Important Notice regarding Elastic IPs:** AWS allows you to run 1 `t3.micro` EC2 instance 24/7 for free under the 750-hours/month limit. However, if you **stop** the EC2 instance, AWS considers your Elastic IP as "unused" and will charge you **~$3.60/month ($0.005/hr)** until you turn the server back on or release the IP. If you want a strictly $0.00 bill without stopping, just leave the server running!
 
 ---
 
