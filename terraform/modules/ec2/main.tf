@@ -31,6 +31,15 @@ data "aws_security_group" "backend_sg" {
   }
 }
 
+resource "aws_vpc_security_group_ingress_rule" "backend_8080" {
+  security_group_id = data.aws_security_group.backend_sg.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 8080
+  ip_protocol = "tcp"
+  to_port     = 8080
+}
+
 data "aws_region" "current" {}
 
 resource "aws_iam_role" "ec2_role" {
