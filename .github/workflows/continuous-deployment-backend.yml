@@ -63,6 +63,9 @@ jobs:
             docker pull ${{ steps.build-image.outputs.image }}
             echo "Ensure docker network exists"
             docker network create isteamx-network || true
+            echo "Ensure app directory exists"
+            sudo mkdir -p /home/ubuntu/app
+            sudo chown ubuntu:ubuntu /home/ubuntu/app
             echo "Fetch secrets from AWS Secrets Manager"
             SECRET_JSON=$(aws secretsmanager get-secret-value \
               --secret-id "isteamx/backend" \
