@@ -8,9 +8,10 @@ services:
     env_file:
       - ../../IS-Backend/.env
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/${POSTGRES_DB:-app_db}
     depends_on:
-      - database
+      database:
+        condition: service_healthy
     networks:
       - isteamx-network
 
@@ -26,13 +27,18 @@ services:
       - isteamx-network
 
   database:
-    image: postgres:latest
+    image: postgres:15-alpine
     env_file:
       - ../../IS-Backend/.env
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - isteamx-network
 
