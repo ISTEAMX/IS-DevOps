@@ -30,6 +30,8 @@ jobs:
 
       - name: Build React app
         run: npm run build
+        env:
+          VITE_API_URL: http://35.158.14.254:8080
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
