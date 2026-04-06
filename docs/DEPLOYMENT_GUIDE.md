@@ -33,7 +33,7 @@ docker push <account-id>.dkr.ecr.eu-central-1.amazonaws.com/isteamx-backend:late
 ```
 
 ### C. Deploy to EC2 (SSH)
-1.  **SSH into EC2**: `ssh -i isteamx-key.pem ubuntu@35.158.14.254`
+1.  **SSH into EC2**: `ssh -i isteamx-key-ec2.pem ubuntu@35.158.14.254`
 2.  **Fetch Secrets**: `aws secretsmanager get-secret-value --secret-id "isteamx/backend" --region eu-central-1 --query 'SecretString' --output text > .env`
 3.  **Pull & Run**:
     ```bash

@@ -96,7 +96,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 resource "aws_instance" "backend" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = "t3.micro"
-  key_name      = "isteamx-key"
+  key_name      = "isteamx-key-ec2"
 
   vpc_security_group_ids = [data.aws_security_group.backend_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name

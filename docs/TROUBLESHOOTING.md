@@ -12,7 +12,7 @@
 
 ### 3. SSH Connectivity Issues
 - **Error**: `Permission denied (publickey)` when trying to SSH into the EC2 server.
-- **Solution**: Ensure your `isteamx-key.pem` has the correct permissions (`chmod 400 isteamx-key.pem`) and that the `EC2 Security Group` allows port `22` (SSH) from your current public IP.
+- **Solution**: Ensure your `isteamx-key-ec2.pem` has the correct permissions (`chmod 400 isteamx-key-ec2.pem`) and that the `EC2 Security Group` allows port `22` (SSH) from your current public IP.
 
 ### 4. Docker Build Failures on EC2
 - **Error**: `insufficient space` or `command not found`.

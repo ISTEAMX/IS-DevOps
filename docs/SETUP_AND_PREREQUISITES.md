@@ -31,4 +31,4 @@ Ensure your GitHub repository has the following **Secrets** configured:
 - `AWS_SECRET_ACCESS_KEY`
 - `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD`
 - `JWT_SECRET_KEY` / `JWT_EXPIRATION`
-- `EC2_SSH_KEY` (The content of your `isteamx-key.pem`)
+- `EC2_SSH_KEY` (The content of your `isteamx-key-ec2.pem`)
