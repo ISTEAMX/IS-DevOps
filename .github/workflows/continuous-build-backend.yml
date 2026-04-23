@@ -24,11 +24,16 @@ jobs:
           java-version: ${{ inputs.java-version }}
           distribution: 'temurin'
           cache: maven
+      - name: Run Tests
+        env:
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          JWT_EXPIRATION: ${{ secrets.JWT_EXPIRATION }}
+        run: mvn -B test --file pom.xml
       - name: Build with Maven
         env:
           JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
           JWT_EXPIRATION: ${{ secrets.JWT_EXPIRATION }}
-        run: mvn -B package --file pom.xml
+        run: mvn -B package -DskipTests --file pom.xml
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
