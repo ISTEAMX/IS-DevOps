@@ -48,7 +48,7 @@ resource "aws_sns_topic_subscription" "emails" {
 resource "aws_cloudwatch_log_metric_filter" "errors" {
   name           = "isteamx-backend-errors"
   log_group_name = aws_cloudwatch_log_group.backend.name
-  pattern        = "\"level\":\"ERROR\""
+  pattern        = "{ $.level = \"ERROR\" }"
 
   metric_transformation {
     name      = "BackendErrorCount"
@@ -112,3 +112,4 @@ output "log_group_name" {
 output "sns_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
+
