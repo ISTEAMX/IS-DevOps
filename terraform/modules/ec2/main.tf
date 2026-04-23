@@ -83,6 +83,26 @@ resource "aws_iam_role_policy" "secrets_manager_read" {
   })
 }
 
+resource "aws_iam_role_policy" "cloudwatch_write" {
+  name = "${var.instance_name}-cloudwatch-write"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams",
+        "cloudwatch:PutMetricData"
+      ],
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.instance_name}-profile"
   role = aws_iam_role.ec2_role.name
@@ -153,3 +173,8 @@ output "public_ip" {
 output "security_group_id" {
   value = data.aws_security_group.backend_sg.id
 }
+
+output "instance_id" {
+  value = aws_instance.backend.id
+}
+

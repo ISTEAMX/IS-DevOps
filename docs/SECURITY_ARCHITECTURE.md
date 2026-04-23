@@ -15,6 +15,7 @@ To prevent hardcoded secrets in the repository, we use **AWS Secrets Manager**:
 The backend EC2 server is assigned a minimal **AWS IAM Instance Profile**:
 - **ECR Pull Access**: Only granted permission to pull Docker images from the `isteamx-backend` repository.
 - **Secrets Manager Read Access**: Only granted permission to read the `isteamx/backend` secret.
+- **CloudWatch Write Access**: Granted permission to create log groups/streams, put log events, and publish custom metrics.
 - **Zero-Credential Strategy**: No long-lived AWS keys (`AWS_ACCESS_KEY_ID`) are stored on the EC2 server itself.
 
 ### 3. Network Isolation (Security Groups)

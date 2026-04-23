@@ -12,6 +12,8 @@ The `IS-DevOps` project provisions a multi-service architecture on **AWS (Amazon
 | **RDS** | `rds/` | Managed `db.t3.micro` PostgreSQL 15 instance with automated backups. |
 | **ECR** | `ecr/` | Private container registry storing backend Docker images. |
 | **Secrets Manager** | `secrets-manager/` | Securely stores database and JWT runtime secrets. |
+| **CloudWatch** | `cloudwatch/` | Error tracking, application metrics, log aggregation, and health alarms. |
+| **SNS** | `cloudwatch/` | Email alert notifications for CloudWatch alarms. |
 | **IAM** | `ec2/` | IAM Instance Profile granting the EC2 server least-privilege access. |
 | **Elastic IP** | `ec2/` | Fixed public IP (`35.158.14.254`) associated with the backend server. |
 
@@ -33,4 +35,9 @@ graph TD
     EC2 --> RDS[(RDS - PostgreSQL)]
     EC2 --> Secrets[Secrets Manager - App Config]
     EC2 --> ECR[ECR - Docker Registry]
+    EC2 --> CWLogs[CloudWatch Logs - Error Tracking]
+    EC2 --> CWMetrics[CloudWatch Metrics - JVM & HTTP]
+    CWLogs --> CWAlarms[CloudWatch Alarms]
+    CWMetrics --> CWAlarms
+    CWAlarms --> SNS[SNS - Email Alerts]
 ```

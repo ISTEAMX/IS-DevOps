@@ -18,4 +18,5 @@ The `IS-DevOps` repository is the central hub for the **ISTEAMX** project's infr
 ## Repository Scope
 - **Containerization**: Docker Compose files for multi-container orchestration.
 - **Infrastructure Provisioning**: Terraform modules for modular AWS resource management.
+- **Monitoring & Alerting**: AWS CloudWatch integration for error tracking, metrics, and health alarms with email notifications.
 - **Automation**: CI/CD workflows (GitHub Actions) for provisioning, deployment, and cost management (Power Scheduler).

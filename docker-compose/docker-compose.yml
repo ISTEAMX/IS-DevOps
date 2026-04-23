@@ -9,6 +9,10 @@ services:
       - ../../IS-Backend/.env
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://database:5432/${POSTGRES_DB:-app_db}
+      - CLOUDWATCH_ENABLED=${CLOUDWATCH_ENABLED:-true}
+      - AWS_REGION=${AWS_REGION:-eu-central-1}
+      - CLOUDWATCH_LOG_GROUP=${CLOUDWATCH_LOG_GROUP:-/isteamx/backend}
+      - CLOUDWATCH_LOG_STREAM=${CLOUDWATCH_LOG_STREAM:-app}
     depends_on:
       database:
         condition: service_healthy

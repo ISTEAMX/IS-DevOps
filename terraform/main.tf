@@ -45,6 +45,16 @@ variable "jwt_expiration" {
   sensitive   = true
 }
 
+variable "alarm_emails" {
+  description = "Email addresses for CloudWatch alarm notifications."
+  type        = list(string)
+  default = [
+    "antonescu.andreiiosif@student.uoradea.ro",
+    "czeli.zoltandragos@student.uoradea.ro",
+    "laza.lukaspatrick@student.uoradea.ro"
+  ]
+}
+
 # ─────────────────────────────────────────────────
 # Modules
 # ─────────────────────────────────────────────────
@@ -81,6 +91,12 @@ module "backend_secrets" {
   jwt_secret_key = var.jwt_secret_key
   jwt_expiration = var.jwt_expiration
   rds_endpoint   = module.backend_database.rds_endpoint
+}
+
+module "monitoring" {
+  source              = "./modules/cloudwatch"
+  alarm_emails        = var.alarm_emails
+  backend_instance_id = module.backend_instance.instance_id
 }
 
 # ─────────────────────────────────────────────────

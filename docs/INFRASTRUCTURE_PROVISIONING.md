@@ -40,3 +40,4 @@ The `terraform/` directory is organized into modules for better maintainability:
 - `modules/rds/`: PostgreSQL database instance and security groups.
 - `modules/ecr/`: Docker image registry.
 - `modules/secrets-manager/`: Configuration and runtime secret storage.
+- `modules/cloudwatch/`: CloudWatch log groups, metric filters, alarms, and SNS alert topics.
