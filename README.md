@@ -56,6 +56,7 @@ For detailed information on the project's architecture, setup, and deployment pr
 - [**Infrastructure Provisioning**](docs/INFRASTRUCTURE_PROVISIONING.md): Detailed Terraform lifecycle guide.
 - [**Deployment Guide**](docs/DEPLOYMENT_GUIDE.md): Pushing Frontend/S3 and Backend/ECR/EC2.
 - [**Cost Management**](docs/COST_MANAGEMENT.md): Using the Power Scheduler and Elastic IP warnings.
+- [**Monitoring & Alerting**](docs/MONITORING.md): CloudWatch logs, metrics, alarms, and SNS email notifications.
 - [**Troubleshooting**](docs/TROUBLESHOOTING.md): Common connectivity and provisioning issues.
 
 ---
