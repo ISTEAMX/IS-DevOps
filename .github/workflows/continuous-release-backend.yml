@@ -11,6 +11,10 @@ on:
         description: 'Semantic version bump: major, minor, or patch'
         required: true
         type: string
+    secrets:
+      PAT_TOKEN:
+        description: 'Personal Access Token with repo permissions to push to protected branches'
+        required: true
 jobs:
   release:
     name: Create release (backend)
@@ -23,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Set up Java
         uses: actions/setup-java@v4
