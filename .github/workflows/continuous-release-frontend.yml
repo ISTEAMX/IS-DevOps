@@ -11,6 +11,10 @@ on:
         description: 'Semantic version bump: major, minor, or patch'
         required: true
         type: string
+    secrets:
+      PAT_TOKEN:
+        description: 'Personal Access Token with repo permissions to push to protected branches'
+        required: true
 
 jobs:
   release:
@@ -24,6 +28,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Read current version from package.json
         id: current_ver
