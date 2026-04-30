@@ -9,8 +9,8 @@ The `IS-DevOps` project provisions a multi-service architecture on **AWS (Amazon
 |---------|--------|---------|
 | **S3** | `s3/` | Hosts the frontend as a static website. |
 | **EC2** | `ec2/` | `t3.micro` instance running the backend Docker container. |
-| **RDS** | `rds/` | Managed `db.t3.micro` PostgreSQL 15 instance with automated backups. |
-| **ECR** | `ecr/` | Private container registry storing backend Docker images. |
+| **RDS** | `rds/` | Managed `db.t3.micro` PostgreSQL 15 instance with gp3 storage and daily backups. |
+| **ECR** | `ecr/` | Private container registry storing backend Docker images (MUTABLE tags, 5-image lifecycle). |
 | **Secrets Manager** | `secrets-manager/` | Securely stores database and JWT runtime secrets. |
 | **CloudWatch** | `cloudwatch/` | Error tracking, application metrics, log aggregation, and health alarms. |
 | **SNS** | `cloudwatch/` | Email alert notifications for CloudWatch alarms. |
