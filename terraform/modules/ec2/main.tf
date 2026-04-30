@@ -34,6 +34,7 @@ data "aws_security_group" "backend_sg" {
 resource "aws_vpc_security_group_ingress_rule" "backend_8080" {
   security_group_id = data.aws_security_group.backend_sg.id
 
+  description = "Backend API - restrict to known sources in production"
   cidr_ipv4   = "0.0.0.0/0"
   from_port   = 8080
   ip_protocol = "tcp"
@@ -98,7 +99,20 @@ resource "aws_iam_role_policy" "cloudwatch_write" {
         "logs:DescribeLogStreams",
         "cloudwatch:PutMetricData"
       ],
-      Resource = "*"
+      Resource = [
+        "arn:aws:logs:*:*:log-group:/isteamx/*",
+        "arn:aws:logs:*:*:log-group:/isteamx/*:*"
+      ]
+    },
+    {
+      Effect   = "Allow",
+      Action   = ["cloudwatch:PutMetricData"],
+      Resource = "*",
+      Condition = {
+        StringEquals = {
+          "cloudwatch:namespace" = "isteamx-backend"
+        }
+      }
     }]
   })
 }
@@ -157,8 +171,13 @@ EOF
   }
 }
 
+variable "backend_eip" {
+  description = "The public IP address of the pre-allocated Elastic IP for the backend."
+  type        = string
+}
+
 data "aws_eip" "backend" {
-  public_ip = "35.158.14.254"
+  public_ip = var.backend_eip
 }
 
 resource "aws_eip_association" "backend_assoc" {

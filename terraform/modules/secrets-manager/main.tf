@@ -50,7 +50,7 @@ variable "secret_name" {
 resource "aws_secretsmanager_secret" "backend" {
   name                    = var.secret_name
   description             = "Application secrets for the ISTEAMX backend service."
-  recovery_window_in_days = 0 # Allow immediate deletion for dev/test
+  recovery_window_in_days = 7
 
   tags = {
     Name    = var.secret_name

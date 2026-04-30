@@ -43,3 +43,8 @@ terraform.rc
 
 # tfsec configuration file
 .tfsec/
+
+# Security - private keys
+*.pem
+*.key
+
