@@ -46,13 +46,19 @@ variable "jwt_expiration" {
 }
 
 variable "alarm_emails" {
-  description = "Email addresses for CloudWatch alarm notifications. Set via terraform.tfvars."
+  description = "Email addresses for CloudWatch alarm notifications."
   type        = list(string)
+  default = [
+    "antonescu.andreiiosif@student.uoradea.ro",
+    "czeli.zoltandragos@student.uoradea.ro",
+    "laza.lukaspatrick@student.uoradea.ro"
+  ]
 }
 
 variable "backend_eip" {
   description = "The public IP address of the pre-allocated Elastic IP for the backend EC2 instance."
   type        = string
+  default     = "35.158.14.254"
 }
 
 # ─────────────────────────────────────────────────
