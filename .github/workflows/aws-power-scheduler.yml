@@ -31,17 +31,20 @@ jobs:
           ACTION="${{ github.event.inputs.action }}"
           
           if [ "$ACTION" == "start" ]; then
+            echo "Starting RDS instance first (needs time to become available)..."
+            aws rds start-db-instance --db-instance-identifier isteamx-postgres || echo "RDS instance might already be starting or running."
+
             echo "Starting EC2 instances..."
             EC2_IDS=$(aws ec2 describe-instances --filters "Name=tag:Project,Values=isteamx" "Name=instance-state-name,Values=stopped" --query "Reservations[*].Instances[*].InstanceId" --output text)
             if [ -n "$EC2_IDS" ]; then
               aws ec2 start-instances --instance-ids $EC2_IDS
               echo "EC2 instances started: $EC2_IDS"
+              echo "Waiting for EC2 instances to be running..."
+              aws ec2 wait instance-running --instance-ids $EC2_IDS
+              echo "EC2 instances are running."
             else
               echo "No stopped EC2 instances found."
             fi
-
-            echo "Starting RDS instance..."
-            aws rds start-db-instance --db-instance-identifier isteamx-postgres || echo "RDS instance might already be starting or running."
             
           elif [ "$ACTION" == "stop" ]; then
             echo "Stopping EC2 instances..."

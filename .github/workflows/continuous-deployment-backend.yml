@@ -76,9 +76,12 @@ jobs:
             echo "Stop old backend"
             docker stop isteamx-backend || true
             docker rm isteamx-backend || true
+            echo "Secure .env file permissions"
+            chmod 600 /home/ubuntu/app/.env
             echo "Run backend"
             docker run -d \
               --name isteamx-backend \
+              --restart unless-stopped \
               -p 8080:8080 \
               --network isteamx-network \
               --env-file /home/ubuntu/app/.env \

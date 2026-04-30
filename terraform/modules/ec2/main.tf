@@ -142,8 +142,9 @@ resource "aws_instance" "backend" {
 
   user_data = <<-EOF
 #!/bin/bash -xe
-apt-get update
-apt-get install -y docker.io awscli jq
+# Retry apt operations to handle transient mirror errors
+apt-get update -o Acquire::Retries=5
+apt-get install -y -o Acquire::Retries=5 docker.io awscli jq
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ubuntu
