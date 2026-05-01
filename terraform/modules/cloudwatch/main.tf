@@ -15,8 +15,8 @@ variable "alarm_emails" {
   type        = list(string)
 }
 
-variable "backend_instance_id" {
-  description = "EC2 instance ID for health monitoring"
+variable "asg_name" {
+  description = "Auto Scaling Group name for health monitoring"
   type        = string
 }
 
@@ -71,20 +71,21 @@ resource "aws_cloudwatch_metric_alarm" "high_error_rate" {
   treat_missing_data  = "notBreaching"
 }
 
-resource "aws_cloudwatch_metric_alarm" "ec2_health" {
-  alarm_name          = "isteamx-ec2-health"
-  comparison_operator = "GreaterThanThreshold"
+resource "aws_cloudwatch_metric_alarm" "asg_unhealthy" {
+  alarm_name          = "isteamx-asg-unhealthy"
+  comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
-  metric_name         = "StatusCheckFailed"
-  namespace           = "AWS/EC2"
+  metric_name         = "GroupInServiceInstances"
+  namespace           = "AWS/AutoScaling"
   period              = 300
-  statistic           = "Maximum"
-  threshold           = 0
-  alarm_description   = "EC2 instance health check failing"
+  statistic           = "Minimum"
+  threshold           = 1
+  alarm_description   = "No healthy instances in the ASG — self-healing should kick in"
   alarm_actions       = [aws_sns_topic.alerts.arn]
+  treat_missing_data  = "breaching"
 
   dimensions = {
-    InstanceId = var.backend_instance_id
+    AutoScalingGroupName = var.asg_name
   }
 }
 
@@ -101,7 +102,7 @@ resource "aws_cloudwatch_metric_alarm" "high_cpu" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
 
   dimensions = {
-    InstanceId = var.backend_instance_id
+    AutoScalingGroupName = var.asg_name
   }
 }
 
@@ -112,4 +113,3 @@ output "log_group_name" {
 output "sns_topic_arn" {
   value = aws_sns_topic.alerts.arn
 }
-

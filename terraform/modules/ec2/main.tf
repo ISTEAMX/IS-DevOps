@@ -8,6 +8,11 @@ variable "secret_arn" {
   type        = string
 }
 
+variable "backend_eip" {
+  description = "The public IP address of the pre-allocated Elastic IP for the backend."
+  type        = string
+}
+
 data "aws_ami" "ubuntu" {
   most_recent = true
 
@@ -31,6 +36,19 @@ data "aws_security_group" "backend_sg" {
   }
 }
 
+data "aws_region" "current" {}
+
+data "aws_eip" "backend" {
+  public_ip = var.backend_eip
+}
+
+data "aws_subnets" "default" {
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
+}
+
 resource "aws_vpc_security_group_ingress_rule" "backend_8080" {
   security_group_id = data.aws_security_group.backend_sg.id
 
@@ -41,7 +59,9 @@ resource "aws_vpc_security_group_ingress_rule" "backend_8080" {
   to_port     = 8080
 }
 
-data "aws_region" "current" {}
+# ─────────────────────────────────────────────────
+# IAM Role & Policies
+# ─────────────────────────────────────────────────
 
 resource "aws_iam_role" "ec2_role" {
   name = "${var.instance_name}-role"
@@ -117,6 +137,24 @@ resource "aws_iam_role_policy" "cloudwatch_write" {
   })
 }
 
+# Policy to allow the instance to associate the Elastic IP on boot
+resource "aws_iam_role_policy" "eip_associate" {
+  name = "${var.instance_name}-eip-associate"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "ec2:AssociateAddress",
+        "ec2:DescribeAddresses"
+      ],
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2_profile" {
   name = "${var.instance_name}-profile"
   role = aws_iam_role.ec2_role.name
@@ -127,20 +165,31 @@ resource "aws_iam_instance_profile" "ec2_profile" {
   }
 }
 
-resource "aws_instance" "backend" {
-  ami           = data.aws_ami.ubuntu.id
+# ─────────────────────────────────────────────────
+# Launch Template (replaces aws_instance)
+# ─────────────────────────────────────────────────
+
+resource "aws_launch_template" "backend" {
+  name_prefix   = "${var.instance_name}-"
+  image_id      = data.aws_ami.ubuntu.id
   instance_type = "t3.micro"
   key_name      = "isteamx-key-ec2"
 
   vpc_security_group_ids = [data.aws_security_group.backend_sg.id]
-  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
-  root_block_device {
-    volume_size = 20
-    volume_type = "gp3"
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ec2_profile.name
   }
 
-  user_data = <<-EOF
+  block_device_mappings {
+    device_name = "/dev/sda1"
+    ebs {
+      volume_size = 20
+      volume_type = "gp3"
+    }
+  }
+
+  user_data = base64encode(<<-EOF
 #!/bin/bash -xe
 # Retry apt operations to handle transient mirror errors
 apt-get update -o Acquire::Retries=5
@@ -148,6 +197,14 @@ apt-get install -y -o Acquire::Retries=5 docker.io awscli jq
 systemctl enable docker
 systemctl start docker
 usermod -aG docker ubuntu
+
+# Associate the Elastic IP to this instance
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+ALLOCATION_ID="${data.aws_eip.backend.id}"
+aws ec2 associate-address \
+  --instance-id "$INSTANCE_ID" \
+  --allocation-id "$ALLOCATION_ID" \
+  --region "${data.aws_region.current.name}" || true
 
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
@@ -165,26 +222,64 @@ echo "$SECRET_JSON" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > .env
 chown -R ubuntu:ubuntu /home/ubuntu/app
 docker network create isteamx-network || true
 EOF
+  )
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name    = var.instance_name
+      Project = "isteamx"
+    }
+  }
 
   tags = {
-    Name    = var.instance_name
+    Name    = "${var.instance_name}-lt"
     Project = "isteamx"
   }
 }
 
-variable "backend_eip" {
-  description = "The public IP address of the pre-allocated Elastic IP for the backend."
-  type        = string
+# ─────────────────────────────────────────────────
+# Auto Scaling Group — self-healing (min=1, max=1)
+# ─────────────────────────────────────────────────
+
+resource "aws_autoscaling_group" "backend" {
+  name                = "${var.instance_name}-asg"
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
+  vpc_zone_identifier = data.aws_subnets.default.ids
+
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+
+  launch_template {
+    id      = aws_launch_template.backend.id
+    version = "$Latest"
+  }
+
+  # Wait for instance to be healthy before marking ASG as updated
+  wait_for_capacity_timeout = "10m"
+
+  tag {
+    key                 = "Name"
+    value               = var.instance_name
+    propagate_at_launch = true
+  }
+
+  tag {
+    key                 = "Project"
+    value               = "isteamx"
+    propagate_at_launch = true
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-data "aws_eip" "backend" {
-  public_ip = var.backend_eip
-}
-
-resource "aws_eip_association" "backend_assoc" {
-  instance_id   = aws_instance.backend.id
-  allocation_id = data.aws_eip.backend.id
-}
+# ─────────────────────────────────────────────────
+# Outputs
+# ─────────────────────────────────────────────────
 
 output "public_ip" {
   value = data.aws_eip.backend.public_ip
@@ -194,7 +289,7 @@ output "security_group_id" {
   value = data.aws_security_group.backend_sg.id
 }
 
-output "instance_id" {
-  value = aws_instance.backend.id
+output "asg_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.backend.name
 }
-

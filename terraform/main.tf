@@ -101,9 +101,9 @@ module "backend_secrets" {
 }
 
 module "monitoring" {
-  source              = "./modules/cloudwatch"
-  alarm_emails        = var.alarm_emails
-  backend_instance_id = module.backend_instance.instance_id
+  source       = "./modules/cloudwatch"
+  alarm_emails = var.alarm_emails
+  asg_name     = module.backend_instance.asg_name
 }
 
 # ─────────────────────────────────────────────────
@@ -128,6 +128,11 @@ output "backend_repository_url" {
 output "backend_security_group_id" {
   description = "The ID of the backend security group."
   value       = module.backend_instance.security_group_id
+}
+
+output "backend_asg_name" {
+  description = "The name of the backend Auto Scaling Group."
+  value       = module.backend_instance.asg_name
 }
 
 output "rds_endpoint" {
