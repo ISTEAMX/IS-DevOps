@@ -181,6 +181,12 @@ resource "aws_launch_template" "backend" {
     name = aws_iam_instance_profile.ec2_profile.name
   }
 
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
+
   block_device_mappings {
     device_name = "/dev/sda1"
     ebs {
@@ -198,13 +204,24 @@ systemctl enable docker
 systemctl start docker
 usermod -aG docker ubuntu
 
-# Associate the Elastic IP to this instance
-INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+# Get instance ID using IMDSv2 token
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+
+# Wait for IAM instance profile to be ready
+echo "Waiting for IAM role to propagate..."
+sleep 15
+
+# Associate the Elastic IP to this instance (with retries)
 ALLOCATION_ID="${data.aws_eip.backend.id}"
-aws ec2 associate-address \
-  --instance-id "$INSTANCE_ID" \
-  --allocation-id "$ALLOCATION_ID" \
-  --region "${data.aws_region.current.name}" || true
+for i in 1 2 3 4 5; do
+  aws ec2 associate-address \
+    --instance-id "$INSTANCE_ID" \
+    --allocation-id "$ALLOCATION_ID" \
+    --region "${data.aws_region.current.name}" && break
+  echo "EIP association attempt $i failed, retrying in 10s..."
+  sleep 10
+done
 
 mkdir -p /home/ubuntu/app
 cd /home/ubuntu/app
