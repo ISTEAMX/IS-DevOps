@@ -171,6 +171,7 @@ resource "aws_db_instance" "postgres" {
 
   backup_retention_period = 1
   skip_final_snapshot     = true
+  apply_immediately       = true
 
   # Enhanced Monitoring
   monitoring_interval = var.monitoring_interval
