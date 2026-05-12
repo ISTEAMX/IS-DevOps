@@ -244,7 +244,7 @@ EOF
 
 resource "aws_autoscaling_group" "backend" {
   name                = "${var.instance_name}-asg"
-  min_size            = 1
+  min_size            = 0
   max_size            = 1
   desired_capacity    = 1
   vpc_zone_identifier = data.aws_subnets.default.ids

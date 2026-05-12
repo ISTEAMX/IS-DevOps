@@ -29,32 +29,41 @@ jobs:
       - name: Execute ${{ github.event.inputs.action }} command
         run: |
           ACTION="${{ github.event.inputs.action }}"
+          ASG_NAME="isteamx-backend-asg"
           
           if [ "$ACTION" == "start" ]; then
             echo "Starting RDS instance first (needs time to become available)..."
             aws rds start-db-instance --db-instance-identifier isteamx-postgres || echo "RDS instance might already be starting or running."
 
-            echo "Starting EC2 instances..."
-            EC2_IDS=$(aws ec2 describe-instances --filters "Name=tag:Project,Values=isteamx" "Name=instance-state-name,Values=stopped" --query "Reservations[*].Instances[*].InstanceId" --output text)
-            if [ -n "$EC2_IDS" ]; then
-              aws ec2 start-instances --instance-ids $EC2_IDS
-              echo "EC2 instances started: $EC2_IDS"
-              echo "Waiting for EC2 instances to be running..."
-              aws ec2 wait instance-running --instance-ids $EC2_IDS
-              echo "EC2 instances are running."
-            else
-              echo "No stopped EC2 instances found."
-            fi
+            echo "Scaling up ASG to 1 instance..."
+            aws autoscaling update-auto-scaling-group \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --min-size 0 \
+              --max-size 1 \
+              --desired-capacity 1
+
+            echo "Waiting for instance to launch and become healthy..."
+            aws autoscaling wait group-in-service --auto-scaling-group-name "$ASG_NAME" || true
+            echo "ASG instance is running."
             
           elif [ "$ACTION" == "stop" ]; then
-            echo "Stopping EC2 instances..."
-            EC2_IDS=$(aws ec2 describe-instances --filters "Name=tag:Project,Values=isteamx" "Name=instance-state-name,Values=running" --query "Reservations[*].Instances[*].InstanceId" --output text)
+            echo "Scaling down ASG to 0 instances..."
+            aws autoscaling update-auto-scaling-group \
+              --auto-scaling-group-name "$ASG_NAME" \
+              --min-size 0 \
+              --max-size 1 \
+              --desired-capacity 0
+
+            echo "Waiting for instances to terminate..."
+            sleep 30
+            EC2_IDS=$(aws ec2 describe-instances \
+              --filters "Name=tag:aws:autoscaling:groupName,Values=$ASG_NAME" "Name=instance-state-name,Values=running,shutting-down,stopping" \
+              --query "Reservations[*].Instances[*].InstanceId" --output text)
             if [ -n "$EC2_IDS" ]; then
-              aws ec2 stop-instances --instance-ids $EC2_IDS
-              echo "EC2 instances stopped: $EC2_IDS"
-            else
-              echo "No running EC2 instances found."
+              echo "Waiting for EC2 instances to terminate: $EC2_IDS"
+              aws ec2 wait instance-terminated --instance-ids $EC2_IDS || true
             fi
+            echo "ASG scaled to 0. All EC2 instances terminated."
 
             echo "Stopping RDS instance..."
             aws rds stop-db-instance --db-instance-identifier isteamx-postgres || echo "RDS instance might already be stopping or stopped."
