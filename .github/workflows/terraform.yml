@@ -48,6 +48,28 @@ jobs:
       - name: Terraform Validate
         run: terraform validate
 
+      - name: Ensure RDS is available before plan
+        run: |
+          DB_STATUS=$(aws rds describe-db-instances \
+            --db-instance-identifier isteamx-postgres \
+            --query "DBInstances[0].DBInstanceStatus" \
+            --output text 2>/dev/null || echo "not-found")
+          echo "Current RDS status: $DB_STATUS"
+          if [ "$DB_STATUS" == "stopped" ] || [ "$DB_STATUS" == "stopping" ]; then
+            if [ "$DB_STATUS" == "stopping" ]; then
+              echo "Waiting for RDS to fully stop..."
+              aws rds wait db-instance-stopped --db-instance-identifier isteamx-postgres
+            fi
+            echo "Starting RDS..."
+            aws rds start-db-instance --db-instance-identifier isteamx-postgres
+            echo "Waiting for RDS to become available..."
+            aws rds wait db-instance-available --db-instance-identifier isteamx-postgres
+          elif [ "$DB_STATUS" != "available" ]; then
+            echo "Waiting for RDS to become available..."
+            aws rds wait db-instance-available --db-instance-identifier isteamx-postgres || true
+          fi
+          echo "RDS is ready."
+
       - name: Terraform Plan
         run: terraform plan -out=tfplan
 
@@ -88,25 +110,32 @@ jobs:
         run: terraform init
 
       - name: Ensure RDS is available before apply
-        working-directory: .
         run: |
           DB_STATUS=$(aws rds describe-db-instances \
             --db-instance-identifier isteamx-postgres \
             --query "DBInstances[0].DBInstanceStatus" \
             --output text 2>/dev/null || echo "not-found")
+          echo "Current RDS status: $DB_STATUS"
           
-          if [ "$DB_STATUS" == "stopped" ]; then
+          if [ "$DB_STATUS" == "stopped" ] || [ "$DB_STATUS" == "stopping" ]; then
+            if [ "$DB_STATUS" == "stopping" ]; then
+              echo "RDS is stopping. Waiting for it to fully stop first..."
+              aws rds wait db-instance-stopped --db-instance-identifier isteamx-postgres
+            fi
             echo "RDS is stopped. Starting it before apply..."
             aws rds start-db-instance --db-instance-identifier isteamx-postgres
             echo "Waiting for RDS to become available (this may take a few minutes)..."
             aws rds wait db-instance-available --db-instance-identifier isteamx-postgres
             echo "RDS is now available."
-          elif [ "$DB_STATUS" == "starting" ]; then
-            echo "RDS is starting. Waiting for it to become available..."
+          elif [ "$DB_STATUS" == "starting" ] || [ "$DB_STATUS" == "configuring-enhanced-monitoring" ] || [ "$DB_STATUS" == "backing-up" ]; then
+            echo "RDS is in transitional state ($DB_STATUS). Waiting for it to become available..."
             aws rds wait db-instance-available --db-instance-identifier isteamx-postgres
             echo "RDS is now available."
+          elif [ "$DB_STATUS" == "available" ]; then
+            echo "RDS is already available. Proceeding."
           else
-            echo "RDS status: $DB_STATUS — proceeding with apply."
+            echo "RDS status: $DB_STATUS — attempting to wait for available state..."
+            aws rds wait db-instance-available --db-instance-identifier isteamx-postgres || true
           fi
 
       - name: Terraform Apply
